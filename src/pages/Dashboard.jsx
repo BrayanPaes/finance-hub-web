@@ -12,6 +12,7 @@ export default function Dashboard() {
   const [date, setDate] = useState(today)
   const [editingId, setEditingId] = useState(null)
   const [showScheduled, setShowScheduled] = useState(false)
+  const [activeFilter, setActiveFilter] = useState('all')
   
   const navigate = useNavigate()
 
@@ -149,7 +150,10 @@ export default function Dashboard() {
   const pendingTransactions = transactions.filter(t => t.status === 'pending')
   const hasScheduled = pendingTransactions.length > 0
 
-  const displayedTransactions = showScheduled ? pendingTransactions : transactions
+  const displayedTransactions = (showScheduled ? pendingTransactions : transactions).filter(t => {
+    if (activeFilter === 'all') return true
+    return t.type === activeFilter
+  })
 
   // Formats a date string to DD/MM/YYYY format
   const formatDate = (dateString) => {
@@ -175,17 +179,26 @@ export default function Dashboard() {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <div className="p-4 bg-white rounded-lg shadow">
-            <h3 className="text-gray-500">Income</h3>
-            <p className="text-2xl font-bold text-green-600">R$ {income.toFixed(2)}</p>
+            {/* Income Card */}
+          <div className={`p-4 rounded-lg shadow transition-colors ${activeFilter === 'income' ? 'bg-blue-600 text-white' : 'bg-white'}`}>
+            <h3 className={activeFilter === 'income' ? 'text-blue-100' : 'text-gray-500'}>Income</h3>
+            <p className={`text-2xl font-bold ${activeFilter === 'income' ? 'text-white' : 'text-green-600'}`}>
+              R$ {income.toFixed(2)}
+            </p>
           </div>
-          <div className="p-4 bg-white rounded-lg shadow">
-            <h3 className="text-gray-500">Expenses</h3>
-            <p className="text-2xl font-bold text-red-600">R$ {expense.toFixed(2)}</p>
+          {/* Expenses Card */}
+          <div className={`p-4 rounded-lg shadow transition-colors ${activeFilter === 'expense' ? 'bg-blue-600 text-white' : 'bg-white'}`}>
+            <h3 className={activeFilter === 'expense' ? 'text-blue-100' : 'text-gray-500'}>Expenses</h3>
+            <p className={`text-2xl font-bold ${activeFilter === 'expense' ? 'text-white' : 'text-red-600'}`}>
+              R$ {expense.toFixed(2)}
+            </p>
           </div>
-          <div className="p-4 text-white bg-blue-600 rounded-lg shadow">
-            <h3 className="text-blue-100">Total Balance</h3>
-            <p className="text-2xl font-bold">R$ {total.toFixed(2)}</p>
+          {/* Total Balance Card */}
+          <div className={`p-4 rounded-lg shadow transition-colors ${activeFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-white'}`}>
+            <h3 className={activeFilter === 'all' ? 'text-blue-100' : 'text-gray-500'}>Total Balance</h3>
+            <p className={`text-2xl font-bold ${activeFilter === 'all' ? 'text-white' : 'text-gray-800'}`}>
+              R$ {total.toFixed(2)}
+            </p>
           </div>
         </div>
 
@@ -244,26 +257,61 @@ export default function Dashboard() {
           </div>
         </form>
 
-        {/* Transaction History */}
-        <div className="p-6 bg-white rounded-lg shadow">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">
-              {showScheduled ? 'Scheduled Transactions' : 'History'}
-            </h2>
+{/* History Header Controls */}
+          <div className="flex items-center justify-between w-full mb-6">
             
-            {hasScheduled && (
-              <button 
-                onClick={() => setShowScheduled(!showScheduled)}
-                className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors ${
-                  showScheduled 
-                    ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' 
-                    : 'bg-yellow-100 text-yellow-800 border border-yellow-300 hover:bg-yellow-200'
-                }`}
-              >
-                {showScheduled ? 'Show All History' : `🕒 ${pendingTransactions.length} Scheduled`}
-              </button>
-            )}
+            {/* Title - Left (Ocupa 1/3 do espaço) */}
+            <div className="flex-1 flex justify-start">
+              <h2 className="text-xl font-semibold whitespace-nowrap">
+                {showScheduled ? 'Scheduled' : 'History'}
+              </h2>
+            </div>
+            
+            {/* Filter Tabs - Center (Ocupa 1/3 do espaço) */}
+            <div className="flex-1 flex justify-center">
+              <div className="flex bg-gray-100 p-1 rounded-lg border text-sm font-medium">
+                <button
+                  type="button"
+                  onClick={() => setActiveFilter('all')}
+                  className={`px-3 py-1.5 rounded-md transition-colors ${activeFilter === 'all' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveFilter('income')}
+                  className={`px-3 py-1.5 rounded-md transition-colors ${activeFilter === 'income' ? 'bg-white shadow text-green-600' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  Incomes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveFilter('expense')}
+                  className={`px-3 py-1.5 rounded-md transition-colors ${activeFilter === 'expense' ? 'bg-white shadow text-red-600' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  Expenses
+                </button>
+              </div>
+            </div>
+            
+            {/* Scheduled Button - Right (Ocupa 1/3 do espaço) */}
+            <div className="flex-1 flex justify-end">
+              {hasScheduled && (
+                <button 
+                  onClick={() => setShowScheduled(!showScheduled)}
+                  className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${
+                    showScheduled 
+                      ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' 
+                      : 'bg-yellow-100 text-yellow-800 border border-yellow-300 hover:bg-yellow-200'
+                  }`}
+                >
+                  {showScheduled ? 'Show All' : `🕒 ${pendingTransactions.length} Scheduled`}
+                </button>
+              )}
+            </div>
+            
           </div>
+
           
           {displayedTransactions.length === 0 ? (
             <p className="text-gray-500">No transactions found.</p>
@@ -326,6 +374,6 @@ export default function Dashboard() {
         </div>
 
       </div>
-    </div>
+
   )
 }
