@@ -95,7 +95,7 @@ export default function Dashboard() {
         description: transaction.description,
         amount: transaction.amount,
         type: transaction.type,
-        date: transaction.date || today,
+        date: today, // Aqui forçamos a data para o dia atual em que ele clicou
         status: 'paid' 
       }, {
         headers: { Authorization: `Bearer ${token}` }
