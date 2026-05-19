@@ -15,6 +15,7 @@ export default function Dashboard() {
   
   const navigate = useNavigate()
 
+  // Fetches all user transactions from the API
   const fetchTransactions = () => {
     const token = localStorage.getItem('@FinanceHub:token')
     if (!token) return
@@ -36,22 +37,25 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Clears token and redirects to login
   const handleLogout = () => {
     localStorage.removeItem('@FinanceHub:token')
     navigate('/login')
   }
 
+  // Saves a new transaction or updates an existing one
   const handleSaveTransaction = async (e) => {
     e.preventDefault()
     const token = localStorage.getItem('@FinanceHub:token')
 
     const transactionStatus = date > today ? 'pending' : 'paid'
+    const safeAmount = Math.abs(Number(amount)) // Forces positive number
 
     try {
       if (editingId) {
         await api.put(`/api/transactions/${editingId}`, {
           description,
-          amount: Number(amount), 
+          amount: safeAmount, 
           type,
           date,
           status: transactionStatus
@@ -61,7 +65,7 @@ export default function Dashboard() {
       } else {
         await api.post('/api/transactions', {
           description,
-          amount: Number(amount), 
+          amount: safeAmount, 
           type,
           date,
           status: transactionStatus
@@ -82,6 +86,7 @@ export default function Dashboard() {
     }
   }
 
+  // Changes a pending transaction status to paid
   const handleMarkAsPaid = async (transaction) => {
     const token = localStorage.getItem('@FinanceHub:token')
     try {
@@ -100,6 +105,7 @@ export default function Dashboard() {
     }
   }
 
+  // Populates the form with transaction data for editing
   const handleEditClick = (transaction) => {
     setDescription(transaction.description)
     setAmount(transaction.amount)
@@ -108,6 +114,7 @@ export default function Dashboard() {
     setEditingId(transaction.id)
   }
 
+  // Resets the form and clears editing state
   const handleCancelEdit = () => {
     setDescription('')
     setAmount('')
@@ -116,6 +123,7 @@ export default function Dashboard() {
     setEditingId(null)
   }
 
+  // Removes a transaction from the database
   const handleDeleteTransaction = async (id) => {
     const token = localStorage.getItem('@FinanceHub:token')
     try {
@@ -143,6 +151,7 @@ export default function Dashboard() {
 
   const displayedTransactions = showScheduled ? pendingTransactions : transactions
 
+  // Formats a date string to DD/MM/YYYY format
   const formatDate = (dateString) => {
     if (!dateString) return ''
     const [year, month, day] = dateString.split('T')[0].split('-')
@@ -198,6 +207,7 @@ export default function Dashboard() {
             <input 
               type="number" 
               step="0.01"
+              min="0"
               placeholder="Amount" 
               required
               value={amount}
@@ -241,7 +251,6 @@ export default function Dashboard() {
               {showScheduled ? 'Scheduled Transactions' : 'History'}
             </h2>
             
-            {/* NOVO BOTÃO DE FILTRO AQUI */}
             {hasScheduled && (
               <button 
                 onClick={() => setShowScheduled(!showScheduled)}
