@@ -11,6 +11,8 @@ export default function Dashboard() {
   const [type, setType] = useState('income') 
   const [date, setDate] = useState(today)
   const [editingId, setEditingId] = useState(null)
+  const [showScheduled, setShowScheduled] = useState(false)
+  
   const navigate = useNavigate()
 
   const fetchTransactions = () => {
@@ -43,13 +45,16 @@ export default function Dashboard() {
     e.preventDefault()
     const token = localStorage.getItem('@FinanceHub:token')
 
+    const transactionStatus = date > today ? 'pending' : 'paid'
+
     try {
       if (editingId) {
         await api.put(`/api/transactions/${editingId}`, {
           description,
           amount: Number(amount), 
           type,
-          date
+          date,
+          status: transactionStatus
         }, {
           headers: { Authorization: `Bearer ${token}` }
         })
@@ -58,7 +63,8 @@ export default function Dashboard() {
           description,
           amount: Number(amount), 
           type,
-          date
+          date,
+          status: transactionStatus
         }, {
           headers: { Authorization: `Bearer ${token}` }
         })
@@ -73,6 +79,24 @@ export default function Dashboard() {
     } catch (error) {
       console.error("Error saving transaction:", error)
       alert("Error saving transaction.")
+    }
+  }
+
+  const handleMarkAsPaid = async (transaction) => {
+    const token = localStorage.getItem('@FinanceHub:token')
+    try {
+      await api.put(`/api/transactions/${transaction.id}`, {
+        description: transaction.description,
+        amount: transaction.amount,
+        type: transaction.type,
+        date: transaction.date || today,
+        status: 'paid' 
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      fetchTransactions()
+    } catch (error) {
+      console.error("Error updating status:", error)
     }
   }
 
@@ -105,14 +129,19 @@ export default function Dashboard() {
   }
 
   const income = transactions
-    .filter(t => t.type === 'income')
+    .filter(t => t.type === 'income' && t.status !== 'pending')
     .reduce((acc, t) => acc + Number(t.amount), 0)
     
   const expense = transactions
-    .filter(t => t.type === 'expense')
+    .filter(t => t.type === 'expense' && t.status !== 'pending')
     .reduce((acc, t) => acc + Number(t.amount), 0)
     
   const total = income - expense
+
+  const pendingTransactions = transactions.filter(t => t.status === 'pending')
+  const hasScheduled = pendingTransactions.length > 0
+
+  const displayedTransactions = showScheduled ? pendingTransactions : transactions
 
   const formatDate = (dateString) => {
     if (!dateString) return ''
@@ -122,7 +151,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen p-8 bg-gray-100">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
@@ -207,17 +236,47 @@ export default function Dashboard() {
 
         {/* Transaction History */}
         <div className="p-6 bg-white rounded-lg shadow">
-          <h2 className="mb-4 text-xl font-semibold">History</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">
+              {showScheduled ? 'Scheduled Transactions' : 'History'}
+            </h2>
+            
+            {/* NOVO BOTÃO DE FILTRO AQUI */}
+            {hasScheduled && (
+              <button 
+                onClick={() => setShowScheduled(!showScheduled)}
+                className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors ${
+                  showScheduled 
+                    ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' 
+                    : 'bg-yellow-100 text-yellow-800 border border-yellow-300 hover:bg-yellow-200'
+                }`}
+              >
+                {showScheduled ? 'Show All History' : `🕒 ${pendingTransactions.length} Scheduled`}
+              </button>
+            )}
+          </div>
           
-          {transactions.length === 0 ? (
+          {displayedTransactions.length === 0 ? (
             <p className="text-gray-500">No transactions found.</p>
           ) : (
             <ul className="space-y-3">
-              {transactions.map((t) => (
-                <li key={t.id} className="flex items-center justify-between p-3 border rounded bg-gray-50">
+              {displayedTransactions.map((t) => (
+                <li 
+                  key={t.id} 
+                  className={`flex items-center justify-between p-3 border rounded ${
+                    t.status === 'pending' ? 'bg-yellow-50 border-yellow-200' : 'bg-gray-50'
+                  }`}
+                >
                   <div className="flex justify-between flex-1 mr-4">
                     <div className="flex flex-col">
-                      <span className="font-semibold">{t.description}</span>
+                      <span className="font-semibold flex items-center gap-2">
+                        {t.description}
+                        {t.status === 'pending' && (
+                          <span className="px-2 py-0.5 text-xs bg-yellow-200 text-yellow-800 rounded-full">
+                            Pending
+                          </span>
+                        )}
+                      </span>
                       <span className="text-xs text-gray-500">
                         {formatDate(t.date || t.createdAt || t.created_at)}
                       </span>
@@ -227,10 +286,19 @@ export default function Dashboard() {
                     </span>
                   </div>
                   <div className="flex gap-2">
+                    {t.status === 'pending' && (
+                      <button 
+                        type="button"
+                        onClick={() => handleMarkAsPaid(t)}
+                        className="px-2 py-1 text-sm font-bold text-white bg-green-500 rounded hover:bg-green-600"
+                      >
+                        ✔ Pay
+                      </button>
+                    )}
                     <button 
                       type="button"
                       onClick={() => handleEditClick(t)}
-                      className="px-2 py-1 text-sm text-white bg-yellow-500 rounded hover:bg-yellow-600"
+                      className="px-2 py-1 text-sm text-white bg-blue-500 rounded hover:bg-blue-600"
                     >
                       Edit
                     </button>
