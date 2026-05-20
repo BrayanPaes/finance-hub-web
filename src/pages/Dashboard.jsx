@@ -15,6 +15,7 @@ const [today] = useState(getLocalToday);
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState('income');
+  const [category, setCategory] = useState('Others');
   const [date, setDate] = useState(today);
   const [editingId, setEditingId] = useState(null);
   const [showScheduled, setShowScheduled] = useState(false);
@@ -56,7 +57,7 @@ const [today] = useState(getLocalToday);
     const token = localStorage.getItem('@FinanceHub:token')
 
     const transactionStatus = date > today ? 'pending' : 'paid'
-    const safeAmount = Math.abs(Number(amount)) // Forces positive number
+    const safeAmount = Math.abs(Number(amount))
 
     try {
       if (editingId) {
@@ -65,7 +66,8 @@ const [today] = useState(getLocalToday);
           amount: safeAmount, 
           type,
           date,
-          status: transactionStatus
+          status: transactionStatus,
+          category
         }, {
           headers: { Authorization: `Bearer ${token}` }
         })
@@ -75,7 +77,8 @@ const [today] = useState(getLocalToday);
           amount: safeAmount, 
           type,
           date,
-          status: transactionStatus
+          status: transactionStatus,
+          category
         }, {
           headers: { Authorization: `Bearer ${token}` }
         })
@@ -85,6 +88,7 @@ const [today] = useState(getLocalToday);
       setAmount('')
       setType('income')
       setDate(today)
+      setCategory('Others')
       setEditingId(null)
       fetchTransactions() 
     } catch (error) {
@@ -101,8 +105,9 @@ const [today] = useState(getLocalToday);
         description: transaction.description,
         amount: transaction.amount,
         type: transaction.type,
-        date: today, // Aqui forçamos a data para o dia atual em que ele clicou
-        status: 'paid' 
+        date: today,
+        status: 'paid',
+        category: transaction.category || 'Others'
       }, {
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -118,6 +123,7 @@ const [today] = useState(getLocalToday);
     setAmount(transaction.amount)
     setType(transaction.type)
     setDate(transaction.date ? transaction.date.split('T')[0] : today)
+    setCategory(transaction.category || 'Others')
     setEditingId(transaction.id)
   }
 
@@ -127,6 +133,7 @@ const [today] = useState(getLocalToday);
     setAmount('')
     setType('income')
     setDate(today)
+    setCategory('Others')
     setEditingId(null)
   }
 
@@ -250,6 +257,29 @@ const [today] = useState(getLocalToday);
               <option value="income">Income</option>
               <option value="expense">Expense</option>
             </select>
+            <select 
+              value={category}
+              onChange={e => setCategory(e.target.value)}
+              className="p-2 border rounded"
+            >
+              {type === 'income' ? (
+                <>
+                  <option value="Salary">Salary</option>
+                  <option value="Investments">Investments</option>
+                  <option value="Others">Others</option>
+                </>
+              ) : (
+                <>
+                  <option value="Food">Food</option>
+                  <option value="Transport">Transport</option>
+                  <option value="Housing">Housing</option>
+                  <option value="Health">Health</option>
+                  <option value="Entertainment">Entertainment</option>
+                  <option value="Others">Others</option>
+                </>
+              )}
+            </select>
+
             <button type="submit" className="px-4 py-2 text-white bg-blue-600 rounded hover:bg-blue-700">
               {editingId ? 'Update' : 'Save'}
             </button>
@@ -338,8 +368,8 @@ const [today] = useState(getLocalToday);
                           </span>
                         )}
                       </span>
-                      <span className="text-xs text-gray-500">
-                        {formatDate(t.date || t.createdAt || t.created_at)}
+                      <span className="text-xs text-gray-500 font-medium">
+                        {formatDate(t.date || t.createdAt || t.created_at)} • <span className="bg-gray-200 px-2 py-0.5 rounded-full text-gray-600">{t.category || 'Others'}</span>
                       </span>
                     </div>
                     <span className={`font-bold ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
