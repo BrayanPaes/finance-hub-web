@@ -20,18 +20,27 @@ const [today] = useState(getLocalToday);
   const [editingId, setEditingId] = useState(null);
   const [showScheduled, setShowScheduled] = useState(false);
   const [activeFilter, setActiveFilter] = useState('all');
+  const [page, setPage] = useState(1);
   
   const navigate = useNavigate();
 
   // Fetches all user transactions from the API
-  const fetchTransactions = () => {
+  const fetchTransactions = (pageNum = 1, shouldAppend = false) => {
     const token = localStorage.getItem('@FinanceHub:token')
     if (!token) return
     
-    api.get('/api/transactions', {
+    api.get(`/api/transactions?page=${pageNum}&limit=10`, {
       headers: { Authorization: `Bearer ${token}` }
     })
-    .then(response => setTransactions(response.data))
+    .then(response => {
+      if (shouldAppend) {
+        // Appends new page items to the existing list
+        setTransactions(prev => [...prev, ...response.data])
+      } else {
+        // Overwrites the list (used on initial load or resets)
+        setTransactions(response.data)
+      }
+    })
     .catch(error => console.error("Error fetching transactions:", error))
   }
 
@@ -40,10 +49,17 @@ const [today] = useState(getLocalToday);
     if (!token) {
       setTimeout(() => navigate('/login'), 0)
     } else {
-      fetchTransactions()
+      fetchTransactions(1, false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Handles loading the next page of transactions
+  const handleLoadMore = () => {
+    const nextPage = page + 1
+    setPage(nextPage)
+    fetchTransactions(nextPage, true)
+  }
 
   // Clears token and redirects to login
   const handleLogout = () => {
@@ -90,7 +106,8 @@ const [today] = useState(getLocalToday);
       setDate(today)
       setCategory('Others')
       setEditingId(null)
-      fetchTransactions() 
+      setPage(1)
+      fetchTransactions(1, false)
     } catch (error) {
       console.error("Error saving transaction:", error)
       alert("Error saving transaction.")
@@ -111,7 +128,8 @@ const [today] = useState(getLocalToday);
       }, {
         headers: { Authorization: `Bearer ${token}` }
       })
-      fetchTransactions()
+      setPage(1)
+      fetchTransactions(1, false)
     } catch (error) {
       console.error("Error updating status:", error)
     }
@@ -144,7 +162,8 @@ const [today] = useState(getLocalToday);
       await api.delete(`/api/transactions/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
-      fetchTransactions() 
+      setPage(1)
+      fetchTransactions(1, false) 
     } catch (error) {
       console.error("Error deleting transaction:", error)
     }
@@ -405,8 +424,19 @@ const [today] = useState(getLocalToday);
               ))}
             </ul>
           )}
-        </div>
 
+          {displayedTransactions.length >= 10 && (
+            <div className="flex justify-center mt-6">
+              <button
+                type="button"
+                onClick={handleLoadMore}
+                className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 transition-colors"
+              >
+                Load More
+              </button>
+            </div>
+          )}
+      </div>
       </div>
 
   )
