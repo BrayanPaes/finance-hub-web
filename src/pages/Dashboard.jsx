@@ -2,19 +2,25 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../services/api'
 
+const getLocalToday = () => {
+  const d = new Date()
+  const tzOffset = d.getTimezoneOffset() * 60000
+  return new Date(d.getTime() - tzOffset).toISOString().split('T')[0]
+}
+
 export default function Dashboard() {
-  const today = new Date().toISOString().split('T')[0]
+const [today] = useState(getLocalToday);
   
-  const [transactions, setTransactions] = useState([])
-  const [description, setDescription] = useState('')
-  const [amount, setAmount] = useState('')
-  const [type, setType] = useState('income') 
-  const [date, setDate] = useState(today)
-  const [editingId, setEditingId] = useState(null)
-  const [showScheduled, setShowScheduled] = useState(false)
-  const [activeFilter, setActiveFilter] = useState('all')
+  const [transactions, setTransactions] = useState([]);
+  const [description, setDescription] = useState('');
+  const [amount, setAmount] = useState('');
+  const [type, setType] = useState('income');
+  const [date, setDate] = useState(today);
+  const [editingId, setEditingId] = useState(null);
+  const [showScheduled, setShowScheduled] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('all');
   
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   // Fetches all user transactions from the API
   const fetchTransactions = () => {
@@ -150,7 +156,9 @@ export default function Dashboard() {
   const pendingTransactions = transactions.filter(t => t.status === 'pending')
   const hasScheduled = pendingTransactions.length > 0
 
-  const displayedTransactions = (showScheduled ? pendingTransactions : transactions).filter(t => {
+  const paidTransactions = transactions.filter(t => t.status !== 'pending')
+
+  const displayedTransactions = (showScheduled ? pendingTransactions : paidTransactions).filter(t => {
     if (activeFilter === 'all') return true
     return t.type === activeFilter
   })
@@ -257,36 +265,34 @@ export default function Dashboard() {
           </div>
         </form>
 
-{/* History Header Controls */}
+        {/* History Header Controls */}
           <div className="flex items-center justify-between w-full mb-6">
             
-            {/* Title - Left (Ocupa 1/3 do espaço) */}
+            {/* Title - Left */}
             <div className="flex-1 flex justify-start">
               <h2 className="text-xl font-semibold whitespace-nowrap">
                 {showScheduled ? 'Scheduled' : 'History'}
               </h2>
             </div>
             
-            {/* Filter Tabs - Center (Ocupa 1/3 do espaço) */}
+            {/* Filter Tabs */}
             <div className="flex-1 flex justify-center">
               <div className="flex bg-gray-100 p-1 rounded-lg border text-sm font-medium">
                 <button
                   type="button"
-                  onClick={() => setActiveFilter('all')}
-                  className={`px-3 py-1.5 rounded-md transition-colors ${activeFilter === 'all' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
-                >
+                  onClick={() => { setActiveFilter('all'); setShowScheduled(false); }}
+                  className={`px-3 py-1.5 rounded-md transition-colors ${activeFilter === 'all' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}>
                   All
                 </button>
                 <button
                   type="button"
-                  onClick={() => setActiveFilter('income')}
-                  className={`px-3 py-1.5 rounded-md transition-colors ${activeFilter === 'income' ? 'bg-white shadow text-green-600' : 'text-gray-500 hover:text-gray-700'}`}
-                >
+                  onClick={() => { setActiveFilter('income'); setShowScheduled(false); }}
+                  className={`px-3 py-1.5 rounded-md transition-colors ${activeFilter === 'income' ? 'bg-white shadow text-green-600' : 'text-gray-500 hover:text-gray-700'}`}>
                   Incomes
                 </button>
                 <button
                   type="button"
-                  onClick={() => setActiveFilter('expense')}
+                  onClick={() => { setActiveFilter('expense'); setShowScheduled(false); }}
                   className={`px-3 py-1.5 rounded-md transition-colors ${activeFilter === 'expense' ? 'bg-white shadow text-red-600' : 'text-gray-500 hover:text-gray-700'}`}
                 >
                   Expenses
@@ -294,20 +300,18 @@ export default function Dashboard() {
               </div>
             </div>
             
-            {/* Scheduled Button - Right (Ocupa 1/3 do espaço) */}
+            {/* Scheduled Button */}
             <div className="flex-1 flex justify-end">
-              {hasScheduled && (
-                <button 
-                  onClick={() => setShowScheduled(!showScheduled)}
-                  className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${
-                    showScheduled 
-                      ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' 
-                      : 'bg-yellow-100 text-yellow-800 border border-yellow-300 hover:bg-yellow-200'
-                  }`}
-                >
-                  {showScheduled ? 'Show All' : `🕒 ${pendingTransactions.length} Scheduled`}
-                </button>
-              )}
+              <button 
+                onClick={() => setShowScheduled(!showScheduled)}
+                className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap border ${
+                  showScheduled 
+                    ? 'bg-gray-200 text-gray-700 border-gray-300 hover:bg-gray-300' 
+                    : hasScheduled 
+                      ? 'bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-200'
+                      : 'bg-white text-gray-500 border-gray-300 hover:text-gray-700 shadow-sm'}`}>
+                {showScheduled ? 'Show All' : `🕒 ${pendingTransactions.length} Scheduled`}
+              </button>
             </div>
             
           </div>
