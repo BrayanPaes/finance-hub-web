@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../services/api'
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
 const getLocalToday = () => {
   const d = new Date()
@@ -179,6 +180,21 @@ const [today] = useState(getLocalToday);
     
   const total = income - expense
 
+  const expensesByCategory = transactions
+    .filter(t => t.type === 'expense' && t.status !== 'pending')
+    .reduce((acc, t) => {
+      const cat = t.category || 'Others'
+      acc[cat] = (acc[cat] || 0) + Number(t.amount)
+      return acc
+    }, {})
+
+    const chartData = Object.keys(expensesByCategory).map(key => ({
+    name: key,
+    value: expensesByCategory[key]
+  }))
+
+  const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#06b6d4', '#8b5cf6', '#ec4899']
+
   const pendingTransactions = transactions.filter(t => t.status === 'pending')
   const hasScheduled = pendingTransactions.length > 0
 
@@ -213,7 +229,7 @@ const [today] = useState(getLocalToday);
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            {/* Income Card */}
+          {/* Income Card */}
           <div className={`p-4 rounded-lg shadow transition-colors ${activeFilter === 'income' ? 'bg-blue-600 text-white' : 'bg-white'}`}>
             <h3 className={activeFilter === 'income' ? 'text-blue-100' : 'text-gray-500'}>Income</h3>
             <p className={`text-2xl font-bold ${activeFilter === 'income' ? 'text-white' : 'text-green-600'}`}>
@@ -236,83 +252,122 @@ const [today] = useState(getLocalToday);
           </div>
         </div>
 
-        {/* Transaction Form */}
-        <form onSubmit={handleSaveTransaction} className="p-6 mb-8 bg-white rounded-lg shadow space-y-4">
-          <h2 className="text-xl font-semibold">
-            {editingId ? 'Edit Transaction' : 'New Transaction'}
-          </h2>
+        {/* Middle Section: Form and Chart */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 items-start">
           
-          <div className="flex flex-wrap gap-4">
-            <input 
-              type="text" 
-              placeholder="Description" 
-              required
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              className="flex-1 p-2 border rounded min-w-[200px]"
-            />
-            <input 
-              type="number" 
-              step="0.01"
-              min="0"
-              placeholder="Amount" 
-              required
-              value={amount}
-              onChange={e => setAmount(e.target.value)}
-              className="w-32 p-2 border rounded"
-            />
-            <input 
-              type="date" 
-              required
-              value={date}
-              onChange={e => setDate(e.target.value)}
-              className="p-2 border rounded text-gray-600"
-            />
-            <select 
-              value={type}
-              onChange={e => setType(e.target.value)}
-              className="p-2 border rounded"
-            >
-              <option value="income">Income</option>
-              <option value="expense">Expense</option>
-            </select>
-            <select 
-              value={category}
-              onChange={e => setCategory(e.target.value)}
-              className="p-2 border rounded"
-            >
-              {type === 'income' ? (
-                <>
-                  <option value="Salary">Salary</option>
-                  <option value="Investments">Investments</option>
-                  <option value="Others">Others</option>
-                </>
-              ) : (
-                <>
-                  <option value="Food">Food</option>
-                  <option value="Transport">Transport</option>
-                  <option value="Housing">Housing</option>
-                  <option value="Health">Health</option>
-                  <option value="Entertainment">Entertainment</option>
-                  <option value="Others">Others</option>
-                </>
-              )}
-            </select>
+          {/* Transaction Form */}
+          <form onSubmit={handleSaveTransaction} className="p-6 bg-white rounded-lg shadow space-y-4">
+            <h2 className="text-xl font-semibold">
+              {editingId ? 'Edit Transaction' : 'New Transaction'}
+            </h2>
+            
+            <div className="flex flex-col gap-4">
+              <input 
+                type="text" 
+                placeholder="Description" 
+                required
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                className="w-full p-2 border rounded"
+              />
+              <div className="flex gap-4">
+                <input 
+                  type="number" 
+                  step="0.01"
+                  min="0"
+                  placeholder="Amount" 
+                  required
+                  value={amount}
+                  onChange={e => setAmount(e.target.value)}
+                  className="flex-1 p-2 border rounded"
+                />
+                <input 
+                  type="date" 
+                  required
+                  value={date}
+                  onChange={e => setDate(e.target.value)}
+                  className="flex-1 p-2 border rounded text-gray-600"
+                />
+              </div>
+              <div className="flex gap-4">
+                <select 
+                  value={type}
+                  onChange={e => {
+                    setType(e.target.value);
+                    setCategory('Others');
+                  }}
+                  className="flex-1 p-2 border rounded"
+                >
+                  <option value="income">Income</option>
+                  <option value="expense">Expense</option>
+                </select>
+                <select 
+                  value={category}
+                  onChange={e => setCategory(e.target.value)}
+                  className="flex-1 p-2 border rounded"
+                >
+                  {type === 'income' ? (
+                    <>
+                      <option value="Salary">Salary</option>
+                      <option value="Investments">Investments</option>
+                      <option value="Others">Others</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="Food">Food</option>
+                      <option value="Transport">Transport</option>
+                      <option value="Housing">Housing</option>
+                      <option value="Health">Health</option>
+                      <option value="Entertainment">Entertainment</option>
+                      <option value="Others">Others</option>
+                    </>
+                  )}
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <button type="submit" className="px-4 py-2 text-white bg-blue-600 rounded hover:bg-blue-700 flex-1">
+                  {editingId ? 'Update' : 'Save'}
+                </button>
+                {editingId && (
+                  <button 
+                    type="button" 
+                    onClick={handleCancelEdit}
+                    className="px-4 py-2 text-gray-700 bg-gray-200 rounded hover:bg-gray-300 flex-1"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </div>
+          </form>
 
-            <button type="submit" className="px-4 py-2 text-white bg-blue-600 rounded hover:bg-blue-700">
-              {editingId ? 'Update' : 'Save'}
-            </button>
-            {editingId && (
-              <button 
-                type="button" 
-                onClick={handleCancelEdit}
-                className="px-4 py-2 text-gray-700 bg-gray-200 rounded hover:bg-gray-300"
-              >
-                Cancel
-              </button>
-            )}
-          </div>
-        </form>
+          {/* Expense Chart */}
+          {chartData.length > 0 && (
+            <div className="p-6 bg-white rounded-lg shadow flex flex-col justify-center h-full">
+              <h2 className="mb-4 text-xl font-semibold text-center text-gray-700">Expenses by Category</h2>
+              <div className="h-[235px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={chartData}
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {chartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => `R$ ${value.toFixed(2)}`} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+          
+        </div>
 
         {/* History Header Controls */}
           <div className="flex items-center justify-between w-full mb-6">
