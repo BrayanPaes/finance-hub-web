@@ -10,7 +10,7 @@ const getLocalToday = () => {
 }
 
 export default function Dashboard() {
-const [today] = useState(getLocalToday);
+  const [today] = useState(getLocalToday);
   
   const [transactions, setTransactions] = useState([]);
   const [description, setDescription] = useState('');
@@ -22,15 +22,17 @@ const [today] = useState(getLocalToday);
   const [showScheduled, setShowScheduled] = useState(false);
   const [activeFilter, setActiveFilter] = useState('all');
   const [page, setPage] = useState(1);
+  const [collapsedMonths, setCollapsedMonths] = useState({});
+  const [hasPending, setHasPending] = useState(false);
   
   const navigate = useNavigate();
 
   // Fetches all user transactions from the API
-  const fetchTransactions = (pageNum = 1, shouldAppend = false) => {
+  const fetchTransactions = (pageNum = 1, shouldAppend = false, currentStatus = showScheduled ? 'pending' : 'paid') => {
     const token = localStorage.getItem('@FinanceHub:token')
     if (!token) return
     
-    api.get(`/api/transactions?page=${pageNum}&limit=10`, {
+    api.get(`/api/transactions?page=${pageNum}&limit=10&status=${currentStatus}`, {
       headers: { Authorization: `Bearer ${token}` }
     })
     .then(response => {
@@ -45,21 +47,51 @@ const [today] = useState(getLocalToday);
     .catch(error => console.error("Error fetching transactions:", error))
   }
 
+  // Checks if there are any pending transactions in the database
+  const checkPending = () => {
+    const token = localStorage.getItem('@FinanceHub:token')
+    if (!token) return
+    api.get('/api/transactions?status=pending&limit=1', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    .then(res => setHasPending(res.data.length > 0))
+    .catch(err => console.error(err))
+  }
+
   useEffect(() => {
     const token = localStorage.getItem('@FinanceHub:token')
     if (!token) {
       setTimeout(() => navigate('/login'), 0)
     } else {
       fetchTransactions(1, false)
+      checkPending()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Action for Filter Tabs
+  const handleFilterClick = (filter) => {
+    setActiveFilter(filter)
+    if (showScheduled) {
+      setShowScheduled(false)
+      setPage(1)
+      fetchTransactions(1, false, 'paid')
+    }
+  }
+
+  // Action for Scheduled Toggle Button
+  const handleToggleScheduled = () => {
+    const nextState = !showScheduled
+    setShowScheduled(nextState)
+    setPage(1)
+    fetchTransactions(1, false, nextState ? 'pending' : 'paid')
+  }
 
   // Handles loading the next page of transactions
   const handleLoadMore = () => {
     const nextPage = page + 1
     setPage(nextPage)
-    fetchTransactions(nextPage, true)
+    fetchTransactions(nextPage, true, showScheduled ? 'pending' : 'paid')
   }
 
   // Clears token and redirects to login
@@ -108,7 +140,8 @@ const [today] = useState(getLocalToday);
       setCategory('Others')
       setEditingId(null)
       setPage(1)
-      fetchTransactions(1, false)
+      fetchTransactions(1, false, showScheduled ? 'pending' : 'paid')
+      checkPending()
     } catch (error) {
       console.error("Error saving transaction:", error)
       alert("Error saving transaction.")
@@ -130,7 +163,8 @@ const [today] = useState(getLocalToday);
         headers: { Authorization: `Bearer ${token}` }
       })
       setPage(1)
-      fetchTransactions(1, false)
+      fetchTransactions(1, false, showScheduled ? 'pending' : 'paid')
+      checkPending()
     } catch (error) {
       console.error("Error updating status:", error)
     }
@@ -164,7 +198,8 @@ const [today] = useState(getLocalToday);
         headers: { Authorization: `Bearer ${token}` }
       })
       setPage(1)
-      fetchTransactions(1, false) 
+      fetchTransactions(1, false, showScheduled ? 'pending' : 'paid')
+      checkPending()
     } catch (error) {
       console.error("Error deleting transaction:", error)
     }
@@ -195,12 +230,7 @@ const [today] = useState(getLocalToday);
 
   const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#06b6d4', '#8b5cf6', '#ec4899']
 
-  const pendingTransactions = transactions.filter(t => t.status === 'pending')
-  const hasScheduled = pendingTransactions.length > 0
-
-  const paidTransactions = transactions.filter(t => t.status !== 'pending')
-
-  const displayedTransactions = (showScheduled ? pendingTransactions : paidTransactions).filter(t => {
+  const displayedTransactions = transactions.filter(t => {
     if (activeFilter === 'all') return true
     return t.type === activeFilter
   })
@@ -211,6 +241,26 @@ const [today] = useState(getLocalToday);
     const [year, month, day] = dateString.split('T')[0].split('-')
     return `${day}/${month}/${year}`
   }
+
+  // Groups transactions by Month and Year
+  const groupedTransactions = displayedTransactions.reduce((acc, t) => {
+    const dateStr = t.date || t.createdAt || t.created_at;
+    if (!dateStr) return acc;
+    
+    const [year, month] = dateStr.split('T')[0].split('-');
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const monthName = monthNames[parseInt(month, 10) - 1];
+    const groupKey = `${monthName} ${year}`;
+    
+    if (!acc[groupKey]) acc[groupKey] = [];
+    acc[groupKey].push(t);
+    return acc;
+  }, {});
+
+  // Toggles the accordion state for a specific month
+  const toggleMonth = (monthKey) => {
+    setCollapsedMonths(prev => ({ ...prev, [monthKey]: !prev[monthKey] }));
+  };
 
   return (
     <div className="min-h-screen p-8 bg-gray-100">
@@ -270,7 +320,7 @@ const [today] = useState(getLocalToday);
                 onChange={e => setDescription(e.target.value)}
                 className="w-full p-2 border rounded"
               />
-              <div className="flex gap-4">
+              <div className="flex flex-col sm:flex-row gap-4">
                 <input 
                   type="number" 
                   step="0.01"
@@ -289,7 +339,7 @@ const [today] = useState(getLocalToday);
                   className="flex-1 p-2 border rounded text-gray-600"
                 />
               </div>
-              <div className="flex gap-4">
+              <div className="flex flex-col sm:flex-row gap-4">
                 <select 
                   value={type}
                   onChange={e => {
@@ -324,7 +374,7 @@ const [today] = useState(getLocalToday);
                   )}
                 </select>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <button type="submit" className="px-4 py-2 text-white bg-blue-600 rounded hover:bg-blue-700 flex-1">
                   {editingId ? 'Update' : 'Save'}
                 </button>
@@ -370,7 +420,7 @@ const [today] = useState(getLocalToday);
         </div>
 
         {/* History Header Controls */}
-          <div className="flex items-center justify-between w-full mb-6">
+          <div className="flex flex-col md:flex-row items-center justify-between w-full mb-6 gap-4">
             
             {/* Title - Left */}
             <div className="flex-1 flex justify-start">
@@ -384,21 +434,20 @@ const [today] = useState(getLocalToday);
               <div className="flex bg-gray-100 p-1 rounded-lg border text-sm font-medium">
                 <button
                   type="button"
-                  onClick={() => { setActiveFilter('all'); setShowScheduled(false); }}
+                  onClick={() => handleFilterClick('all')}
                   className={`px-3 py-1.5 rounded-md transition-colors ${activeFilter === 'all' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}>
                   All
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setActiveFilter('income'); setShowScheduled(false); }}
+                  onClick={() => handleFilterClick('income')}
                   className={`px-3 py-1.5 rounded-md transition-colors ${activeFilter === 'income' ? 'bg-white shadow text-green-600' : 'text-gray-500 hover:text-gray-700'}`}>
                   Incomes
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setActiveFilter('expense'); setShowScheduled(false); }}
-                  className={`px-3 py-1.5 rounded-md transition-colors ${activeFilter === 'expense' ? 'bg-white shadow text-red-600' : 'text-gray-500 hover:text-gray-700'}`}
-                >
+                  onClick={() => handleFilterClick('expense')}
+                  className={`px-3 py-1.5 rounded-md transition-colors ${activeFilter === 'expense' ? 'bg-white shadow text-red-600' : 'text-gray-500 hover:text-gray-700'}`}>
                   Expenses
                 </button>
               </div>
@@ -407,14 +456,15 @@ const [today] = useState(getLocalToday);
             {/* Scheduled Button */}
             <div className="flex-1 flex justify-end">
               <button 
-                onClick={() => setShowScheduled(!showScheduled)}
+                onClick={handleToggleScheduled}
                 className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap border ${
                   showScheduled 
                     ? 'bg-gray-200 text-gray-700 border-gray-300 hover:bg-gray-300' 
-                    : hasScheduled 
+                    : hasPending
                       ? 'bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-200'
-                      : 'bg-white text-gray-500 border-gray-300 hover:text-gray-700 shadow-sm'}`}>
-                {showScheduled ? 'Show All' : `🕒 ${pendingTransactions.length} Scheduled`}
+                      : 'bg-white text-gray-500 border-gray-300 hover:text-gray-700 shadow-sm'
+                }`}>
+                {showScheduled ? 'Show All' : '🕒 Scheduled'}
               </button>
             </div>
             
@@ -424,75 +474,91 @@ const [today] = useState(getLocalToday);
           {displayedTransactions.length === 0 ? (
             <p className="text-gray-500">No transactions found.</p>
           ) : (
-            <ul className="space-y-3">
-              {displayedTransactions.map((t) => (
-                <li 
-                  key={t.id} 
-                  className={`flex items-center justify-between p-3 border rounded ${
-                    t.status === 'pending' ? 'bg-yellow-50 border-yellow-200' : 'bg-gray-50'
-                  }`}
-                >
-                  <div className="flex justify-between flex-1 mr-4">
-                    <div className="flex flex-col">
-                      <span className="font-semibold flex items-center gap-2">
-                        {t.description}
-                        {t.status === 'pending' && (
-                          <span className="px-2 py-0.5 text-xs bg-yellow-200 text-yellow-800 rounded-full">
-                            Pending
-                          </span>
-                        )}
-                      </span>
-                      <span className="text-xs text-gray-500 font-medium">
-                        {formatDate(t.date || t.createdAt || t.created_at)} • <span className="bg-gray-200 px-2 py-0.5 rounded-full text-gray-600">{t.category || 'Others'}</span>
-                      </span>
-                    </div>
-                    <span className={`font-bold ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
-                      {t.type === 'income' ? '+' : '-'} R$ {Number(t.amount).toFixed(2)}
+            <div className="space-y-4">
+              {Object.entries(groupedTransactions).map(([monthKey, monthTransactions]) => (
+                <div key={monthKey} className="border rounded-lg bg-white overflow-hidden shadow-sm">
+                  
+                  {/* Accordion Header */}
+                  <button 
+                    onClick={() => toggleMonth(monthKey)}
+                    className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 transition-colors border-b">
+                    <h3 className="font-bold text-gray-700 capitalize">{monthKey}</h3>
+                    <span className="text-gray-500 font-medium text-sm">
+                      {collapsedMonths[monthKey] ? '▼ Mostrar' : '▲ Ocultar'}
                     </span>
-                  </div>
-                  <div className="flex gap-2">
-                    {t.status === 'pending' && (
-                      <button 
-                        type="button"
-                        onClick={() => handleMarkAsPaid(t)}
-                        className="px-2 py-1 text-sm font-bold text-white bg-green-500 rounded hover:bg-green-600"
-                      >
-                        ✔ Pay
-                      </button>
-                    )}
-                    <button 
-                      type="button"
-                      onClick={() => handleEditClick(t)}
-                      className="px-2 py-1 text-sm text-white bg-blue-500 rounded hover:bg-blue-600"
-                    >
-                      Edit
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => handleDeleteTransaction(t.id)}
-                      className="px-2 py-1 text-sm text-white bg-red-500 rounded hover:bg-red-600"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </li>
+                  </button>
+                  
+                  {/* Accordion Body */}
+                  {!collapsedMonths[monthKey] && (
+                    <ul className="p-4 space-y-3">
+                      {monthTransactions.map((t) => (
+                        <li 
+                          key={t.id} 
+                          className={`flex items-center justify-between p-3 border rounded ${
+                            t.status === 'pending' ? 'bg-yellow-50 border-yellow-200' : 'bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex justify-between flex-1 mr-4">
+                            <div className="flex flex-col">
+                              <span className="font-semibold flex items-center gap-2">
+                                {t.description}
+                                {t.status === 'pending' && (
+                                  <span className="px-2 py-0.5 text-xs bg-yellow-200 text-yellow-800 rounded-full">
+                                    Pending
+                                  </span>
+                                )}
+                              </span>
+                              <span className="text-xs text-gray-500 font-medium">
+                                {formatDate(t.date || t.createdAt || t.created_at)} • <span className="bg-gray-200 px-2 py-0.5 rounded-full text-gray-600">{t.category || 'Others'}</span>
+                              </span>
+                            </div>
+                            <span className={`font-bold ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                              {t.type === 'income' ? '+' : '-'} R$ {Number(t.amount).toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex gap-2">
+                            {t.status === 'pending' && (
+                              <button 
+                                type="button"
+                                onClick={() => handleMarkAsPaid(t)}
+                                className="px-2 py-1 text-sm font-bold text-white bg-green-500 rounded hover:bg-green-600">
+                                ✔ Pay
+                              </button>
+                            )}
+                            <button 
+                              type="button"
+                              onClick={() => handleEditClick(t)}
+                              className="px-2 py-1 text-sm text-white bg-blue-500 rounded hover:bg-blue-600">
+                              Edit
+                            </button>
+                            <button 
+                              type="button"
+                              onClick={() => handleDeleteTransaction(t.id)}
+                              className="px-2 py-1 text-sm text-white bg-red-500 rounded hover:bg-red-600">
+                              Delete
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               ))}
-            </ul>
+            </div>
           )}
 
+          {/* Load More Button */}
           {displayedTransactions.length >= 10 && (
             <div className="flex justify-center mt-6">
               <button
                 type="button"
                 onClick={handleLoadMore}
-                className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 transition-colors"
-              >
+                className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 transition-colors">
                 Load More
               </button>
             </div>
           )}
       </div>
-      </div>
-
-  )
+    </div>
+  );
 }
