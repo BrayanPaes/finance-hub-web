@@ -28,9 +28,9 @@ export default function Dashboard() {
   const [editingId, setEditingId] = useState(null);
   const [showScheduled, setShowScheduled] = useState(false);
   const [activeFilter, setActiveFilter] = useState("all");
-  const [page, setPage] = useState(1);
   const [collapsedMonths, setCollapsedMonths] = useState({});
   const [hasPending, setHasPending] = useState(false);
+  const [activeMonth, setActiveMonth] = useState('');
 
   const navigate = useNavigate();
 
@@ -45,7 +45,7 @@ export default function Dashboard() {
 
     api
       .get(
-        `/api/transactions?page=${pageNum}&limit=10&status=${currentStatus}`,
+        `/api/transactions?page=${pageNum}&limit=1000&status=${currentStatus}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         },
@@ -90,7 +90,7 @@ export default function Dashboard() {
     setActiveFilter(filter);
     if (showScheduled) {
       setShowScheduled(false);
-      setPage(1);
+      
       fetchTransactions(1, false, "paid");
     }
   };
@@ -99,15 +99,8 @@ export default function Dashboard() {
   const handleToggleScheduled = () => {
     const nextState = !showScheduled;
     setShowScheduled(nextState);
-    setPage(1);
+    
     fetchTransactions(1, false, nextState ? "pending" : "paid");
-  };
-
-  // Handles loading the next page of transactions
-  const handleLoadMore = () => {
-    const nextPage = page + 1;
-    setPage(nextPage);
-    fetchTransactions(nextPage, true, showScheduled ? "pending" : "paid");
   };
 
   // Clears token and redirects to login
@@ -163,7 +156,7 @@ export default function Dashboard() {
       setDate(today);
       setCategory("Others");
       setEditingId(null);
-      setPage(1);
+      
       fetchTransactions(1, false, showScheduled ? "pending" : "paid");
       checkPending();
     } catch (error) {
@@ -190,7 +183,7 @@ export default function Dashboard() {
           headers: { Authorization: `Bearer ${token}` },
         },
       );
-      setPage(1);
+      
       fetchTransactions(1, false, showScheduled ? "pending" : "paid");
       checkPending();
     } catch (error) {
@@ -225,7 +218,7 @@ export default function Dashboard() {
       await api.delete(`/api/transactions/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setPage(1);
+      
       fetchTransactions(1, false, showScheduled ? "pending" : "paid");
       checkPending();
     } catch (error) {
@@ -233,20 +226,31 @@ export default function Dashboard() {
     }
   };
 
+  // Helper to get Month Year from date
+  const getMonthKey = (dateStr) => {
+    if (!dateStr) return '';
+    const [year, month] = dateStr.split('T')[0].split('-');
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    return `${monthNames[parseInt(month, 10) - 1]} ${year}`;
+  }
+
+  // Identifies the month to show in the chart (defaults to the first loaded transaction's month)
+  const chartMonth = activeMonth || (transactions.length > 0 ? getMonthKey(transactions[0].date || transactions[0].createdAt || transactions[0].created_at) : '');
+
   const income = transactions
-    .filter((t) => t.type === "income" && t.status !== "pending")
+    .filter(t => t.type === 'income' && t.status !== 'pending' && getMonthKey(t.date || t.createdAt || t.created_at) === chartMonth)
     .reduce((acc, t) => acc + Number(t.amount), 0);
 
-  const expense = transactions
-    .filter((t) => t.type === "expense" && t.status !== "pending")
+    const expense = transactions
+    .filter(t => t.type === 'expense' && t.status !== 'pending' && getMonthKey(t.date || t.createdAt || t.created_at) === chartMonth)
     .reduce((acc, t) => acc + Number(t.amount), 0);
 
   const total = income - expense;
 
   const expensesByCategory = transactions
-    .filter((t) => t.type === "expense" && t.status !== "pending")
+    .filter(t => t.type === 'expense' && t.status !== 'pending' && getMonthKey(t.date || t.createdAt || t.created_at) === chartMonth)
     .reduce((acc, t) => {
-      const cat = t.category || "Others";
+      const cat = t.category || 'Others';
       acc[cat] = (acc[cat] || 0) + Number(t.amount);
       return acc;
     }, {});
@@ -308,7 +312,8 @@ export default function Dashboard() {
 
   // Toggles the accordion state for a specific month
   const toggleMonth = (monthKey) => {
-    setCollapsedMonths((prev) => ({ ...prev, [monthKey]: !prev[monthKey] }));
+    setCollapsedMonths(prev => ({ ...prev, [monthKey]: !prev[monthKey] }));
+    setActiveMonth(monthKey);
   };
 
   return (
@@ -477,9 +482,7 @@ export default function Dashboard() {
           {/* Expense Chart */}
           {chartData.length > 0 && (
             <div className="p-6 bg-white rounded-lg shadow flex flex-col justify-center h-full">
-              <h2 className="mb-4 text-xl font-semibold text-center text-gray-700">
-                Expenses by Category
-              </h2>
+              <h2 className="mb-4 text-xl font-semibold text-center text-gray-700">Expenses: {chartMonth || 'No data'}</h2>
               <div className="h-[235px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -578,12 +581,12 @@ export default function Dashboard() {
                       {monthKey}
                     </h3>
                     <span className="text-gray-500 font-medium text-sm">
-                      {collapsedMonths[monthKey] ? "▼ Mostrar" : "▲ Ocultar"}
+                      {collapsedMonths[monthKey] ? "▲ Ocultar" : "▼ Mostrar"}
                     </span>
                   </button>
 
                   {/* Accordion Body */}
-                  {!collapsedMonths[monthKey] && (
+                  {collapsedMonths[monthKey] && (
                     <ul className="p-4 space-y-3">
                       {monthTransactions.map((t) => (
                         <li
@@ -653,19 +656,6 @@ export default function Dashboard() {
                 </div>
               ),
             )}
-          </div>
-        )}
-
-        {/* Load More Button */}
-        {displayedTransactions.length >= 10 && (
-          <div className="flex justify-center mt-6">
-            <button
-              type="button"
-              onClick={handleLoadMore}
-              className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 transition-colors"
-            >
-              Load More
-            </button>
           </div>
         )}
       </div>
